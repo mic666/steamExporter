@@ -18,13 +18,17 @@ import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class GameLstApp extends Application {
 
     private final static int rowsPerPage = 15;
     private TableView<Game> table = new TableView<>();
-    private List<Game> data = null;
+    private List<Game> gameList = null;
+    private Map<Integer, Image> gameCoverMap = new HashMap<>();
 
     public static void main(String[] args) throws IOException {
         launch(args);
@@ -35,7 +39,14 @@ public class GameLstApp extends Application {
         String gamesListWithDetails = caller.getGamesListWithDetails();
         //System.out.println(gamesListWithDetails);
         GameLst gameLst = GsonParser.fromJsonToGameLst(gamesListWithDetails);
-        data = gameLst.getResponse().getGames();
+        gameList = gameLst.getResponse().getGames();
+        gameList.stream().sorted((game1, game2) -> game1.getName().compareTo(game2.getName()));
+        for (Game game : gameList) {
+            final long timeBeforeLoadingImage = Calendar.getInstance().getTimeInMillis();
+            gameCoverMap.put(game.getAppid(), new Image("http://media.steampowered.com/steamcommunity/public/images/apps/" + game.getAppid() + "/" + game.getImgLogoUrl() + ".jpg"));
+            final long timeAfterLoadingImage = Calendar.getInstance().getTimeInMillis();
+            System.out.println("Loading of image for game : " + game.getName() + " took " + (timeAfterLoadingImage - timeBeforeLoadingImage) + " ms");
+        }
     }
 
     @Override
@@ -58,7 +69,7 @@ public class GameLstApp extends Application {
 
         TableColumn<Game, Image> gameLogoColumn = new TableColumn<>();
         gameLogoColumn.setCellValueFactory(cellValueFactory -> {
-                    Image logo = new Image("http://media.steampowered.com/steamcommunity/public/images/apps/" + cellValueFactory.getValue().getAppid() + "/" + cellValueFactory.getValue().getImgLogoUrl() + ".jpg");
+            Image logo = gameCoverMap.get(cellValueFactory.getValue().getAppid());
                     return new SimpleObjectProperty<>(logo);//TODO PRELOAD IMAGE TO AVOID SLOWNESS
                 }
         );
@@ -74,7 +85,7 @@ public class GameLstApp extends Application {
         });
 
         table.getColumns().addAll(appidColumn, nameColumn, playTimeColumn, gameLogoColumn);
-        Pagination paginator = new Pagination(data.size() / rowsPerPage);
+        Pagination paginator = new Pagination(gameList.size() / rowsPerPage);
         paginator.setPageFactory(this::getPageFactory);
         root.getChildren().add(paginator);
         primaryStage.setScene(new Scene(root, 600, 800));
@@ -84,8 +95,8 @@ public class GameLstApp extends Application {
 
     private Node getPageFactory(Integer pageIndex) {
         int fromIndex = pageIndex * rowsPerPage;
-        int toIndex = Math.min(fromIndex + rowsPerPage, data.size());
-        table.setItems(FXCollections.observableArrayList(data.subList(fromIndex, toIndex)));
+        int toIndex = Math.min(fromIndex + rowsPerPage, gameList.size());
+        table.setItems(FXCollections.observableArrayList(gameList.subList(fromIndex, toIndex)));
         return new BorderPane(table);
     }
 }
