@@ -7,48 +7,42 @@ import be.mic666.steamExporter.gson.GsonParser;
 import javafx.application.Application;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.FXCollections;
+import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.ContentDisplay;
-import javafx.scene.control.TableCell;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
+import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.util.List;
 
 public class GameLstApp extends Application {
 
-    public static void main(String[] args) throws IOException {
+    private final static int rowsPerPage = 15;
+    private TableView<Game> table = new TableView<>();
+    private List<Game> data = null;
 
-//        GameLst gameLst = getGamelstToShow();
-//        System.out.printf("Steam result : " + gameLst);
-        //System.out.print("please enter the path to save the file linux way : ");
-        //Scanner in = new Scanner(System.in);
-        //String inputStrPath = in.next();
-        //Path outputFilePath = Paths.get(inputStrPath + "/mySteamGameLst.txt");
-        //Files.write(outputFilePath, gameLst.toString().getBytes());
-        //System.out.printf("succesfully save steam game list to file ==> " + outputFilePath.toString());
+    public static void main(String[] args) throws IOException {
         launch(args);
     }
 
-    private static GameLst getGamelstToShow() {
+    private void getGamelstToShow() {
         SteamApiCaller caller = new SteamApiCaller();
         String gamesListWithDetails = caller.getGamesListWithDetails();
         //System.out.println(gamesListWithDetails);
-        return GsonParser.fromJsonToGameLst(gamesListWithDetails);
+        GameLst gameLst = GsonParser.fromJsonToGameLst(gamesListWithDetails);
+        data = gameLst.getResponse().getGames();
     }
 
     @Override
     public void start(Stage primaryStage) {
         primaryStage.setTitle("Testing javaFx for my steam library");
-        GameLst gameLst = getGamelstToShow();
+        getGamelstToShow();
         StackPane root = new StackPane();
-        TableView<Game> table = new TableView<>();
-        table.setItems(FXCollections.observableList(gameLst.getResponse().getGames()));
 
         TableColumn<Game, String> appidColumn = new TableColumn<>();
         appidColumn.setText("appId");
@@ -65,7 +59,7 @@ public class GameLstApp extends Application {
         TableColumn<Game, Image> gameLogoColumn = new TableColumn<>();
         gameLogoColumn.setCellValueFactory(cellValueFactory -> {
                     Image logo = new Image("http://media.steampowered.com/steamcommunity/public/images/apps/" + cellValueFactory.getValue().getAppid() + "/" + cellValueFactory.getValue().getImgLogoUrl() + ".jpg");
-                    return new SimpleObjectProperty<>(logo);
+                    return new SimpleObjectProperty<>(logo);//TODO PRELOAD IMAGE TO AVOID SLOWNESS
                 }
         );
         gameLogoColumn.setCellFactory(tableColumn -> new TableCell<Game, Image>() {
@@ -80,10 +74,18 @@ public class GameLstApp extends Application {
         });
 
         table.getColumns().addAll(appidColumn, nameColumn, playTimeColumn, gameLogoColumn);
-
-        root.getChildren().add(table);
+        Pagination paginator = new Pagination(data.size() / rowsPerPage);
+        paginator.setPageFactory(this::getPageFactory);
+        root.getChildren().add(paginator);
         primaryStage.setScene(new Scene(root, 600, 800));
         primaryStage.show();
 
+    }
+
+    private Node getPageFactory(Integer pageIndex) {
+        int fromIndex = pageIndex * rowsPerPage;
+        int toIndex = Math.min(fromIndex + rowsPerPage, data.size());
+        table.setItems(FXCollections.observableArrayList(data.subList(fromIndex, toIndex)));
+        return new BorderPane(table);
     }
 }
